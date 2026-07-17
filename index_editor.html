@@ -483,7 +483,7 @@ document.getElementById('export-final').addEventListener('click', () => {
   let html = '<!doctype html>\n' + clone.outerHTML;
   const placesCode = 'const defaultPlaces = ' + JSON.stringify(places, null, 2) + ';';
   html = html.replace(/const defaultPlaces = \[[\s\S]*?\n\];/, placesCode);
-  html = html.replace('const FINAL_MODE = false;', 'const FINAL_MODE = false;');
+  html = html.replace('const FINAL_MODE = false;', 'const FINAL_MODE = true;');
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
