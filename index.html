@@ -26,21 +26,7 @@
     .filter-bar { position:fixed; z-index:6; left:20px; top:110px; display:flex; gap:8px; flex-wrap:wrap; }
     .filter-chip { border:1px solid var(--line); background:var(--panel); color:#fff; border-radius:999px; padding:9px 12px; cursor:pointer; font-weight:700; backdrop-filter:blur(14px); }
     .filter-chip.active { background:#ffcf4a; color:#15110a; border-color:#ffcf4a; }
-
-    .editor-toggle { position:fixed; z-index:20; right:20px; bottom:18px; border:1px solid var(--line); background:var(--panel); color:#fff; border-radius:12px; padding:11px 14px; cursor:pointer; font-weight:700; backdrop-filter:blur(14px); }
     .view-reset { position:fixed; z-index:20; left:20px; bottom:66px; border:1px solid var(--line); background:var(--panel); color:#fff; border-radius:12px; padding:11px 14px; cursor:pointer; font-weight:700; backdrop-filter:blur(14px); }
-    .editor { position:fixed; z-index:19; right:20px; top:110px; width:340px; max-height:calc(100vh - 190px); overflow:auto; padding:16px; border-radius:16px; background:rgba(8,12,18,.96); border:1px solid rgba(255,255,255,.14); box-shadow:0 24px 70px rgba(0,0,0,.52); display:none; }
-    .editor.open { display:block; }
-    .editor h3 { margin:0 0 12px; font-size:16px; }
-    .editor label { display:block; margin:10px 0 5px; color:#aeb8c7; font-size:12px; }
-    .editor input,.editor textarea,.editor select { width:100%; background:#111823; color:#fff; border:1px solid rgba(255,255,255,.14); border-radius:10px; padding:9px 10px; font:inherit; }
-    .editor textarea { min-height:92px; resize:vertical; }
-    .editor .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-    .editor .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
-    .editor button { border:1px solid rgba(255,255,255,.14); background:#182231; color:#fff; border-radius:10px; padding:9px 10px; cursor:pointer; }
-    .editor button.primary { background:#ffcf4a; color:#15110a; border-color:#ffcf4a; font-weight:800; }
-    .editor button.danger { background:#3a1720; }
-    .edit-note { color:#94a0af; font-size:12px; line-height:1.45; margin:0 0 10px; }
     @media (max-width: 720px) { .help { display:none; } .brand { max-width:calc(100vw - 40px); } }
   </style>
 </head>
@@ -59,22 +45,6 @@
 <div class="legend"><div><span class="dot place"></span>Místa</div><div style="margin-top:6px;"><span class="dot infrastructure"></span>Infrastruktura</div></div>
 
 <button id="view-reset" class="view-reset">Výchozí pohled</button>
-<button id="editor-toggle" class="editor-toggle">Zavřít editor</button>
-<div id="editor" class="editor open">
-  <h3>Editor interaktivních bodů</h3>
-  <p class="edit-note">Vyber bod v seznamu nebo klikni na bod v mapě. V režimu úprav klikni na bod, přesuň ho myší a druhým kliknutím ho polož. Změny se automaticky ukládají v prohlížeči. Po dokončení použij „Exportovat finální HTML“ — výsledný soubor už editor neobsahuje.</p>
-  <label for="place-select">Bod</label><select id="place-select"><option value="0">1. žst. Olomouc</option><option value="1">2. Areál pily</option><option value="2">3. Sklad PHM</option><option value="3">4. Depo</option><option value="4">5. Opravna nákladních vozů</option><option value="5">6. žst. Hranice</option><option value="6">7. Vojenská vlečka</option><option value="7">8. 1</option><option value="8">9. 3</option><option value="9">10. 5</option><option value="10">11. 7</option><option value="11">12. 9</option><option value="12">13. 11</option><option value="13">14. 13</option><option value="14">15. 1</option><option value="15">16. 3</option><option value="16">17. 5</option></select>
-  <label for="place-name">Název</label><input id="place-name" type="text">
-  <label for="place-description">Popis</label><textarea id="place-description"></textarea>
-  <label for="place-category">Kategorie</label>
-  <select id="place-category"><option value="misto">Místa</option><option value="infrastruktura">Infrastruktura</option></select>
-  <div class="row"><div><label for="place-x">X (%)</label><input id="place-x" type="number" min="0" max="100" step="0.1"></div><div><label for="place-y">Y (%)</label><input id="place-y" type="number" min="0" max="100" step="0.1"></div></div>
-  <div class="actions"><button id="apply-place" class="primary">Použít změny</button><button id="place-on-map">Umístit kliknutím do mapy</button></div>
-  <p id="placement-status" class="edit-note" style="display:none;margin-top:10px;color:#74d7ff;">Klikni jednou na požadované místo v mapě. Bod se tam ihned přesune.</p>
-  <div class="actions"><button id="add-place">Přidat bod</button><button id="delete-place" class="danger">Smazat</button></div>
-  <div class="actions"><button id="export-final" class="primary">Exportovat finální HTML</button></div>
-  <div class="actions"><button id="export-places">Export JSON</button><button id="reset-places">Obnovit výchozí</button></div>
-</div>
 
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.166.1/examples/jsm/"}}
@@ -88,21 +58,7 @@ const popup = document.getElementById('popup');
 const popupTitle = document.getElementById('popup-title');
 const popupText = document.getElementById('popup-text');
 const filterBar = document.getElementById('filter-bar');
-const editorToggle = document.getElementById('editor-toggle');
 const viewReset = document.getElementById('view-reset');
-const editor = document.getElementById('editor');
-const placeSelect = document.getElementById('place-select');
-const placeName = document.getElementById('place-name');
-const placeDescription = document.getElementById('place-description');
-const placeCategory = document.getElementById('place-category');
-const placeX = document.getElementById('place-x');
-const placeY = document.getElementById('place-y');
-const placeOnMap = document.getElementById('place-on-map');
-const placementStatus = document.getElementById('placement-status');
-let editMode = false;
-let editorIndex = 0;
-let placementMode = false;
-const FINAL_MODE = true;
 let activeFilter = 'misto';
 
 function getCategoryMeta(category) {
@@ -297,13 +253,7 @@ const defaultPlaces = [
     "y": 45
   }
 ];
-let places;
-try { places = JSON.parse(localStorage.getItem('kolejiste-places')) || structuredClone(defaultPlaces); } catch { places = structuredClone(defaultPlaces); }
-places = places.map((place, index) => ({
-  ...place,
-  category: place.category || defaultPlaces[index]?.category || 'misto'
-}));
-if (FINAL_MODE) { places = structuredClone(defaultPlaces); editorToggle.remove(); editor.remove(); }
+const places = structuredClone(defaultPlaces);
 viewReset.addEventListener('click', () => {
   controls.reset();
   popup.style.display = 'none';
@@ -433,56 +383,6 @@ filterBar.querySelectorAll('[data-filter]').forEach(button => {
   });
 });
 
-if (!FINAL_MODE) {
-function savePlaces() { localStorage.setItem('kolejiste-places', JSON.stringify(places)); }
-function refreshEditor(index = editorIndex) {
-  if (!places.length) return;
-  editorIndex = Math.max(0, Math.min(index, places.length - 1));
-  placeSelect.innerHTML = places.map((p,i)=>`<option value="${i}">${i+1}. ${p.name}</option>`).join('');
-  placeSelect.value = editorIndex;
-  const p = places[editorIndex];
-  placeName.value = p.name; placeDescription.value = p.description; placeCategory.value = p.category || 'misto'; placeX.value = p.x; placeY.value = p.y;
-}
-function selectEditorPlace(index) { editorIndex = index; refreshEditor(index); }
-if (!FINAL_MODE) editorToggle.addEventListener('click', () => { editMode = !editMode; placementMode = false; placementStatus.style.display = 'none'; placeOnMap.classList.remove('primary'); editor.classList.toggle('open', editMode); editorToggle.textContent = editMode ? 'Zavřít editor' : 'Upravit body'; controls.enabled = !editMode; refreshEditor(); popup.style.display='none'; });
-placeSelect.addEventListener('change', () => selectEditorPlace(Number(placeSelect.value)));
-document.getElementById('apply-place').addEventListener('click', () => {
-  const p=places[editorIndex]; p.name=placeName.value.trim()||'Bez názvu'; p.description=placeDescription.value.trim(); p.category=placeCategory.value; p.x=Math.max(0,Math.min(100,Number(placeX.value))); p.y=Math.max(0,Math.min(100,Number(placeY.value)));
-  savePlaces(); rebuildMarkers(); refreshEditor(editorIndex);
-});
-document.getElementById('add-place').addEventListener('click', () => { places.push({name:'Nový bod',category:'misto',description:'Doplň popis místa.',x:50,y:50}); savePlaces(); rebuildMarkers(); refreshEditor(places.length-1); });
-document.getElementById('delete-place').addEventListener('click', () => { if(places.length<=1) return; places.splice(editorIndex,1); savePlaces(); rebuildMarkers(); refreshEditor(Math.max(0,editorIndex-1)); });
-document.getElementById('reset-places').addEventListener('click', () => { places=structuredClone(defaultPlaces); savePlaces(); rebuildMarkers(); refreshEditor(0); });
-placeOnMap.addEventListener('click', () => {
-  placementMode = !placementMode;
-  placementStatus.style.display = placementMode ? 'block' : 'none';
-  placeOnMap.classList.toggle('primary', placementMode);
-  placeOnMap.textContent = placementMode ? 'Zrušit umisťování' : 'Umístit kliknutím do mapy';
-  popup.style.display = 'none';
-});
-document.getElementById('export-final').addEventListener('click', () => {
-  // Vloží aktuální body přímo do HTML a zapne režim FINAL_MODE.
-  const clone = document.documentElement.cloneNode(true);
-  clone.querySelector('#app').innerHTML = '';
-  clone.querySelector('#popup').style.display = 'none';
-  let html = '<!doctype html>\n' + clone.outerHTML;
-  const placesCode = 'const defaultPlaces = ' + JSON.stringify(places, null, 2) + ';';
-  html = html.replace(/const defaultPlaces = \[[\s\S]*?\n\];/, placesCode);
-  html = html.replace('const FINAL_MODE = false;', 'const FINAL_MODE = true;');
-  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = 'kolejiste_final.html';
-  a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-});
-document.getElementById('export-places').addEventListener('click', () => {
-  const blob=new Blob([JSON.stringify(places,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='body-kolejiste.json'; a.click(); URL.revokeObjectURL(a.href);
-});
-refreshEditor();
-
-}
-
 let selected = null;
 function setPointer(event) {
   pointer.x = (event.clientX / innerWidth) * 2 - 1;
@@ -493,46 +393,15 @@ renderer.domElement.addEventListener('pointermove', event => {
   setPointer(event);
   raycaster.setFromCamera(pointer, camera);
   const hit = raycaster.intersectObjects(markers, false)[0];
-  renderer.domElement.style.cursor = placementMode ? 'crosshair' : (hit ? 'pointer' : 'grab');
+  renderer.domElement.style.cursor = hit ? 'pointer' : 'grab';
   for (const m of markers) m.scale.setScalar(hit && m === hit.object ? 1.35 : 1);
 });
 
-renderer.domElement.addEventListener('pointerdown', event => {
-  if (!(editMode && placementMode) || event.button !== 0) return;
-  event.preventDefault();
-  event.stopPropagation();
-  setPointer(event);
-  raycaster.setFromCamera(pointer, camera);
-  const worldPoint = new THREE.Vector3();
-  if (!raycaster.ray.intersectPlane(dragPlane, worldPoint)) return;
-
-  const x = Math.max(0, Math.min(100, (worldPoint.x / photoW + .5) * 100));
-  const y = Math.max(0, Math.min(100, (worldPoint.z / photoH + .5) * 100));
-  const p = places[editorIndex];
-  p.x = +x.toFixed(1);
-  p.y = +y.toFixed(1);
-  savePlaces();
-  rebuildMarkers();
-  refreshEditor(editorIndex);
-  placementMode = false;
-  placementStatus.style.display = 'none';
-  placeOnMap.classList.remove('primary');
-  placeOnMap.textContent = 'Umístit kliknutím do mapy';
-  renderer.domElement.style.cursor = 'grab';
-}, true);
 
 renderer.domElement.addEventListener('click', event => {
   setPointer(event);
   raycaster.setFromCamera(pointer, camera);
   const hit = raycaster.intersectObjects(markers, false)[0];
-  if (editMode) {
-    if (hit) {
-      editorIndex = places.indexOf(hit.object.userData.markerRoot.userData.place);
-      refreshEditor(editorIndex);
-      popup.style.display = 'none';
-    }
-    return;
-  }
 
   if (!hit) { selected = null; popup.style.display = 'none'; return; }
   selected = hit.object.userData.markerRoot;
@@ -542,14 +411,6 @@ renderer.domElement.addEventListener('click', event => {
   popup.style.display = 'block';
 });
 
-window.addEventListener('keydown', event => {
-  if (event.key === 'Escape' && placementMode) {
-    placementMode = false;
-    placementStatus.style.display = 'none';
-    placeOnMap.classList.remove('primary');
-    placeOnMap.textContent = 'Umístit kliknutím do mapy';
-  }
-});
 
 function updatePopup() {
   if (!selected || popup.style.display === 'none') return;
