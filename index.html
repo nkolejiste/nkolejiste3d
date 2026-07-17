@@ -1,0 +1,592 @@
+<!doctype html>
+<html lang="cs"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>3D mapa modelového kolejiště</title>
+  <style>
+    :root { color-scheme: dark; --panel: rgba(10,14,20,.88); --line: rgba(255,255,255,.12); }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: #080b10; font-family: Inter, ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif; }
+    #app { position: fixed; inset: 0; }
+    canvas { display: block; }
+    .topbar { position: fixed; z-index: 5; left: 20px; right: 20px; top: 18px; display:flex; gap:12px; justify-content:space-between; align-items:flex-start; pointer-events:none; }
+    .brand, .help { background: var(--panel); border:1px solid var(--line); backdrop-filter: blur(16px); border-radius:16px; box-shadow:0 18px 50px rgba(0,0,0,.35); pointer-events:auto; }
+    .brand { padding:14px 16px; max-width:430px; }
+    .brand h1 { margin:0 0 4px; font-size:18px; letter-spacing:.01em; }
+    .brand p { margin:0; color:#aeb8c7; font-size:13px; line-height:1.45; }
+    .help { padding:10px 12px; color:#c6d0dd; font-size:12px; line-height:1.5; text-align:right; }
+    #popup { position: fixed; z-index: 10; min-width:260px; max-width:360px; padding:16px 18px; border-radius:16px; background:rgba(8,12,18,.95); border:1px solid rgba(255,255,255,.14); box-shadow:0 24px 70px rgba(0,0,0,.52); backdrop-filter:blur(18px); display:none; transform:translate(-50%, calc(-100% - 22px)); pointer-events:auto; }
+    #popup::after { content:""; position:absolute; left:50%; bottom:-8px; width:16px; height:16px; background:inherit; border-right:1px solid rgba(255,255,255,.14); border-bottom:1px solid rgba(255,255,255,.14); transform:translateX(-50%) rotate(45deg); }
+    #popup h2 { margin:0 0 8px; font-size:18px; }
+    #popup p { margin:0; color:#b8c2cf; line-height:1.55; font-size:14px; }
+    #popup-more { display:none; width:max-content; margin-top:12px; padding:9px 13px; border-radius:10px; background:#ffcf4a; color:#15110a; text-decoration:none; font-size:13px; font-weight:800; }
+    .legend { position:fixed; z-index:5; left:20px; bottom:18px; background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:10px 12px; color:#b7c0cd; font-size:12px; backdrop-filter:blur(14px); }
+    .dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-right:7px; }
+    .dot.place { background:#ffcf4a; box-shadow:0 0 16px #ffcf4a; }
+    .dot.infrastructure { background:#74d7ff; box-shadow:0 0 16px #74d7ff; }
+    .filter-bar { position:fixed; z-index:6; left:20px; top:110px; display:flex; gap:8px; flex-wrap:wrap; }
+    .filter-chip { border:1px solid var(--line); background:var(--panel); color:#fff; border-radius:999px; padding:9px 12px; cursor:pointer; font-weight:700; backdrop-filter:blur(14px); }
+    .filter-chip.active { background:#ffcf4a; color:#15110a; border-color:#ffcf4a; }
+
+    .editor-toggle { position:fixed; z-index:20; right:20px; bottom:18px; border:1px solid var(--line); background:var(--panel); color:#fff; border-radius:12px; padding:11px 14px; cursor:pointer; font-weight:700; backdrop-filter:blur(14px); }
+    .view-reset { position:fixed; z-index:20; left:20px; bottom:66px; border:1px solid var(--line); background:var(--panel); color:#fff; border-radius:12px; padding:11px 14px; cursor:pointer; font-weight:700; backdrop-filter:blur(14px); }
+    .editor { position:fixed; z-index:19; right:20px; top:110px; width:340px; max-height:calc(100vh - 190px); overflow:auto; padding:16px; border-radius:16px; background:rgba(8,12,18,.96); border:1px solid rgba(255,255,255,.14); box-shadow:0 24px 70px rgba(0,0,0,.52); display:none; }
+    .editor.open { display:block; }
+    .editor h3 { margin:0 0 12px; font-size:16px; }
+    .editor label { display:block; margin:10px 0 5px; color:#aeb8c7; font-size:12px; }
+    .editor input,.editor textarea,.editor select { width:100%; background:#111823; color:#fff; border:1px solid rgba(255,255,255,.14); border-radius:10px; padding:9px 10px; font:inherit; }
+    .editor textarea { min-height:92px; resize:vertical; }
+    .editor .row { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+    .editor .actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+    .editor button { border:1px solid rgba(255,255,255,.14); background:#182231; color:#fff; border-radius:10px; padding:9px 10px; cursor:pointer; }
+    .editor button.primary { background:#ffcf4a; color:#15110a; border-color:#ffcf4a; font-weight:800; }
+    .editor button.danger { background:#3a1720; }
+    .edit-note { color:#94a0af; font-size:12px; line-height:1.45; margin:0 0 10px; }
+    @media (max-width: 720px) { .help { display:none; } .brand { max-width:calc(100vw - 40px); } }
+  </style>
+</head>
+<body>
+<div id="app"></div>
+<div class="topbar">
+  <div class="brand"><h1>Modelové kolejiště — interaktivní mapa</h1><p>Kliknutím na žlutý bod otevřeš název a popis místa. Mapu lze otáčet, přibližovat a naklánět.</p></div>
+  <div class="help">Levým tlačítkem: otáčení<br>Pravým tlačítkem: posun<br>Kolečkem: přiblížení</div>
+</div>
+<div id="popup" style="display: none;"><h2 id="popup-title"></h2><p id="popup-text"></p><a id="popup-more" href="#">Více</a></div>
+<div id="filter-bar" class="filter-bar">
+  <button class="filter-chip" data-filter="all">Vše</button>
+  <button class="filter-chip active" data-filter="misto">Místa</button>
+  <button class="filter-chip" data-filter="infrastruktura">Infrastruktura</button>
+</div>
+<div class="legend"><div><span class="dot place"></span>Místa</div><div style="margin-top:6px;"><span class="dot infrastructure"></span>Infrastruktura</div></div>
+
+<button id="view-reset" class="view-reset">Výchozí pohled</button>
+<script type="importmap">
+{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.166.1/examples/jsm/"}}
+</script>
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+const app = document.getElementById('app');
+const popup = document.getElementById('popup');
+const popupTitle = document.getElementById('popup-title');
+const popupText = document.getElementById('popup-text');
+const popupMore = document.getElementById('popup-more');
+const filterBar = document.getElementById('filter-bar');
+const editorToggle = document.getElementById('editor-toggle');
+const viewReset = document.getElementById('view-reset');
+const editor = document.getElementById('editor');
+const placeSelect = document.getElementById('place-select');
+const placeName = document.getElementById('place-name');
+const placeDescription = document.getElementById('place-description');
+const placeDetailUrl = document.getElementById('place-detail-url');
+const placeCategory = document.getElementById('place-category');
+const placeX = document.getElementById('place-x');
+const placeY = document.getElementById('place-y');
+const placeOnMap = document.getElementById('place-on-map');
+const placementStatus = document.getElementById('placement-status');
+let editMode = false;
+let editorIndex = 0;
+let placementMode = false;
+const FINAL_MODE = true;
+let activeFilter = 'misto';
+
+function getCategoryMeta(category) {
+  if (category === 'infrastruktura') {
+    return { label: 'Infrastruktura', color: 0x74d7ff, emissive: 0x1491c6, ring: 0x9ae7ff };
+  }
+  return { label: 'Místa', color: 0xffd85b, emissive: 0xffa600, ring: 0xffd85b };
+}
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x080b10);
+scene.fog = new THREE.Fog(0x080b10, 24, 55);
+
+const camera = new THREE.PerspectiveCamera(42, innerWidth / innerHeight, 0.1, 100);
+const defaultCameraPosition = new THREE.Vector3(5, 7, 11);
+const defaultTarget = new THREE.Vector3(0.7, 0, 0);
+camera.position.copy(defaultCameraPosition);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+app.appendChild(renderer.domElement);
+
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+controls.dampingFactor = .06;
+controls.target.copy(defaultTarget);
+controls.minDistance = 10;
+controls.maxDistance = 44;
+const defaultOffset = defaultCameraPosition.clone().sub(defaultTarget);
+const defaultSpherical = new THREE.Spherical().setFromVector3(defaultOffset);
+const angleLimit = Math.PI / 4;
+controls.minAzimuthAngle = defaultSpherical.theta - angleLimit;
+controls.maxAzimuthAngle = defaultSpherical.theta + angleLimit;
+controls.minPolarAngle = Math.max(0.2, defaultSpherical.phi - angleLimit);
+controls.maxPolarAngle = Math.min(Math.PI / 2, defaultSpherical.phi + angleLimit);
+controls.saveState();
+
+scene.add(new THREE.HemisphereLight(0xdfeaff, 0x1a2028, 2.0));
+const sun = new THREE.DirectionalLight(0xffffff, 2.3);
+sun.position.set(8, 20, 10);
+sun.castShadow = true;
+scene.add(sun);
+
+const imageUrl = './images/kolejiste.jpg';
+const texture = await new THREE.TextureLoader().loadAsync(imageUrl);
+texture.colorSpace = THREE.SRGBColorSpace;
+texture.anisotropy = renderer.capabilities.getMaxAnisotropy();
+
+const photoW = 11.0;
+const photoH = photoW * (2048/1365);
+
+const board = new THREE.Mesh(
+  new THREE.BoxGeometry(photoW + .35, .34, photoH + .35),
+  new THREE.MeshStandardMaterial({ color:0x171c24, roughness:.86, metalness:.08 })
+);
+board.position.y = -.19;
+board.receiveShadow = true;
+scene.add(board);
+
+const map = new THREE.Mesh(
+  new THREE.PlaneGeometry(photoW, photoH),
+  new THREE.MeshStandardMaterial({ map:texture, roughness:.72, metalness:0.0 })
+);
+map.rotation.x = -Math.PI / 2;
+map.receiveShadow = true;
+scene.add(map);
+
+// Pozice jsou v procentech fotografie: x = zleva, y = shora.
+// Stačí upravit hodnoty x/y nebo doplnit další položky.
+const defaultPlaces = [
+  {
+    "name": "žst. Olomouc",
+    "detailUrl": "./mista/olomouc.html",
+    "category": "misto",
+    "x": 73.8,
+    "y": 27.5,
+    "description": "Rozsáhlá stanice s několika dopravními a manipulačními kolejemi. Slouží jako hlavní provozní uzel kolejiště. Dochází zde k rozřazování a sestavování vlaků."
+  },
+  {
+    "name": "Areál pily",
+    "detailUrl": "./mista/pila.html",
+    "category": "misto",
+    "x": 52,
+    "y": 52,
+    "description": "Rozsáhlý průmyslový areál pro zpracování dřeva s manipulační plochou a vlečkou pro nakládku a vykládku."
+  },
+  {
+    "name": "Sklad PHM",
+    "detailUrl": "./mista/phm.html",
+    "category": "misto",
+    "description": "Sklad pohonných hmot se dvěma nádržemi na kapaliny a jedním podzemním zásobníkem.",
+    "x": 41,
+    "y": 68
+  },
+  {
+    "name": "Depo",
+    "detailUrl": "./mista/depo.html",
+    "category": "misto",
+    "description": "Zázemí pro odstavení, údržbu a provozní ošetření lokomotiv.",
+    "x": 64,
+    "y": 12
+  },
+  {
+    "name": "Opravna nákladních vozů",
+    "detailUrl": "./mista/opravna.html",
+    "category": "misto",
+    "description": "Pracoviště pro opravy nákladních vozů. Nachází se zde dvě koleje s opravárenskou halou.",
+    "x": 66,
+    "y": 58
+  },
+  {
+    "name": "žst. Hranice",
+    "detailUrl": "./mista/hranice.html",
+    "category": "misto",
+    "description": "Menší stanice na kolejišti do níž ústí rozsáhlá vlečka.",
+    "x": 34,
+    "y": 33
+  },
+  {
+    "name": "Vojenská vlečka",
+    "detailUrl": "./mista/vojaci.html",
+    "category": "misto",
+    "description": "Jedna kolej a rampa sloužící pro potřeby armády, především nakládka tanků a kontejnerů.",
+    "x": 43.5,
+    "y": 15
+  },
+  {
+    "name": "1",
+    "category": "infrastruktura",
+    "description": "Průjezdná kolej v žst. Olomouc",
+    "x": 83,
+    "y": 40
+  },
+  {
+    "name": "3",
+    "category": "infrastruktura",
+    "description": "Kolej č.3 slouží především k odstavování vlaků.",
+    "x": 80.3,
+    "y": 40
+  },
+  {
+    "name": "5",
+    "category": "infrastruktura",
+    "description": "Kolej č.5 slouží především k sestavování vlaků a následně k jejich odjezdu směr Hranice",
+    "x": 77.5,
+    "y": 40
+  },
+  {
+    "name": "7",
+    "category": "infrastruktura",
+    "description": "Kolej č.7 slouží především k odstavování vozů.",
+    "x": 75,
+    "y": 40
+  },
+  {
+    "name": "9",
+    "category": "infrastruktura",
+    "description": "Kolej č.9 slouží především k odstavování vozů.",
+    "x": 71,
+    "y": 40
+  },
+  {
+    "name": "11",
+    "category": "infrastruktura",
+    "description": "Kolej č.11 slouží především k odstavování vozů.",
+    "x": 67.9,
+    "y": 40
+  },
+  {
+    "name": "13",
+    "category": "infrastruktura",
+    "description": "Kolej č.13 slouží především k přesunu lokomotiv z/do depa.",
+    "x": 64.9,
+    "y": 37
+  },
+  {
+    "name": "1",
+    "category": "infrastruktura",
+    "description": "Průjezdná kolej v žst. Hranice",
+    "x": 30.8,
+    "y": 45
+  },
+  {
+    "name": "3",
+    "category": "infrastruktura",
+    "description": "Kolej č.3 slouží především k manipulaci nákladních vlaků.",
+    "x": 33.65,
+    "y": 45
+  },
+  {
+    "name": "5",
+    "category": "infrastruktura",
+    "description": "Kolej č.5 slouží především k nakládce vozů u rampy v žst. Hranice, dále se zde nachází sklad uhlí a odstavují lokomotivy.",
+    "x": 36.5,
+    "y": 45
+  }
+];
+let places;
+try { places = JSON.parse(localStorage.getItem('kolejiste-places')) || structuredClone(defaultPlaces); } catch { places = structuredClone(defaultPlaces); }
+places = places.map((place, index) => ({
+  ...place,
+  category: place.category || defaultPlaces[index]?.category || 'misto',
+  detailUrl: place.detailUrl || defaultPlaces[index]?.detailUrl || ''
+}));
+if (FINAL_MODE) { places = structuredClone(defaultPlaces); editorToggle?.remove(); editor?.remove(); }
+viewReset.addEventListener('click', () => {
+  controls.reset();
+  popup.style.display = 'none';
+  selected = null;
+});
+
+const raycaster = new THREE.Raycaster();
+const pointer = new THREE.Vector2();
+const markers = [];
+const markerGroup = new THREE.Group();
+scene.add(markerGroup);
+
+function photoToWorld(xPercent, yPercent) {
+  const x = (xPercent / 100 - .5) * photoW;
+  const z = (yPercent / 100 - .5) * photoH;
+  return new THREE.Vector3(x, 0, z);
+}
+
+
+function createTextSprite(text, color = '#bfeeff') {
+  const canvas = document.createElement('canvas');
+  const ctx = canvas.getContext('2d');
+  const fontSize = 42;
+  const paddingX = 28;
+  const paddingY = 18;
+  ctx.font = `700 ${fontSize}px Inter, Arial, sans-serif`;
+  const metrics = ctx.measureText(text);
+  canvas.width = Math.ceil(metrics.width + paddingX * 2);
+  canvas.height = fontSize + paddingY * 2;
+
+  ctx.font = `700 ${fontSize}px Inter, Arial, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.fillStyle = color;
+  ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+  ctx.shadowBlur = 5;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 1;
+  ctx.fillText(text, w / 2, h / 2 + 1);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearFilter;
+  const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false });
+  const sprite = new THREE.Sprite(material);
+  const aspect = canvas.width / canvas.height;
+  sprite.scale.set(0.28 * aspect, 0.28, 1);
+  sprite.renderOrder = 20;
+  return sprite;
+}
+
+function createMarker(place) {
+  const p = photoToWorld(place.x, place.y);
+  const group = new THREE.Group();
+  group.position.copy(p);
+  group.userData.place = place;
+  const categoryMeta = getCategoryMeta(place.category);
+  const isInfrastructure = place.category === 'infrastruktura';
+
+  // Infrastruktura je o kousek menší, místa jsou naopak o něco vyšší.
+  const stemHeight = isInfrastructure ? 0.56 : 0.88;
+  const stemRadius = isInfrastructure ? 0.026 : 0.032;
+  const headRadius = isInfrastructure ? 0.075 : 0.145;
+  const headHeight = stemHeight + headRadius * 0.42;
+
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(stemRadius, stemRadius, stemHeight, 16),
+    new THREE.MeshStandardMaterial({ color:categoryMeta.color, emissive:categoryMeta.emissive, emissiveIntensity:1.0 })
+  );
+  stem.position.y = stemHeight / 2 + .015;
+  stem.castShadow = true;
+  group.add(stem);
+
+  const head = new THREE.Mesh(
+    new THREE.SphereGeometry(headRadius, 26, 18),
+    new THREE.MeshStandardMaterial({ color:categoryMeta.color, emissive:categoryMeta.emissive, emissiveIntensity:1.8, roughness:.24 })
+  );
+  head.position.y = headHeight;
+  head.castShadow = true;
+  head.userData.markerRoot = group;
+  group.userData.popupHeight = headHeight + (isInfrastructure ? 0.16 : 0.22);
+  group.add(head);
+
+  if (!isInfrastructure) {
+    const ring = new THREE.Mesh(
+      new THREE.RingGeometry(.22, .31, 32),
+      new THREE.MeshBasicMaterial({ color:categoryMeta.ring, transparent:true, opacity:.55, side:THREE.DoubleSide })
+    );
+    ring.rotation.x = -Math.PI/2;
+    ring.position.y = .012;
+    ring.userData.isPulseRing = true;
+    group.add(ring);
+  }
+
+  const label = createTextSprite(place.name, isInfrastructure ? '#bfeeff' : '#ffe28a');
+  label.position.set(0, headHeight + (isInfrastructure ? 0.14 : 0.19), 0);
+  label.userData.isCategoryLabel = true;
+  group.add(label);
+
+  markerGroup.add(group);
+  markers.push(head);
+
+  return group;
+}
+function applyFilter() {
+  markerGroup.children.forEach(group => {
+    const category = group.userData.place.category || 'misto';
+    group.visible = activeFilter === 'all' || category === activeFilter;
+  });
+}
+function rebuildMarkers() {
+  markerGroup.clear(); markers.length = 0;
+  for (const place of places) createMarker(place);
+  applyFilter();
+}
+rebuildMarkers();
+
+filterBar.querySelectorAll('[data-filter]').forEach(button => {
+  button.addEventListener('click', () => {
+    activeFilter = button.dataset.filter;
+    filterBar.querySelectorAll('[data-filter]').forEach(btn => btn.classList.toggle('active', btn === button));
+    popup.style.display = 'none';
+    selected = null;
+    applyFilter();
+  });
+});
+
+if (!FINAL_MODE) {
+function savePlaces() { localStorage.setItem('kolejiste-places', JSON.stringify(places)); }
+function refreshEditor(index = editorIndex) {
+  if (!places.length) return;
+  editorIndex = Math.max(0, Math.min(index, places.length - 1));
+  placeSelect.innerHTML = places.map((p,i)=>`<option value="${i}">${i+1}. ${p.name}</option>`).join('');
+  placeSelect.value = editorIndex;
+  const p = places[editorIndex];
+  placeName.value = p.name; placeDescription.value = p.description; placeDetailUrl.value = p.detailUrl || ''; placeCategory.value = p.category || 'misto'; placeX.value = p.x; placeY.value = p.y;
+}
+function selectEditorPlace(index) { editorIndex = index; refreshEditor(index); }
+if (!FINAL_MODE) editorToggle.addEventListener('click', () => { editMode = !editMode; placementMode = false; placementStatus.style.display = 'none'; placeOnMap.classList.remove('primary'); editor.classList.toggle('open', editMode); editorToggle.textContent = editMode ? 'Zavřít editor' : 'Upravit body'; controls.enabled = !editMode; refreshEditor(); popup.style.display='none'; });
+placeSelect.addEventListener('change', () => selectEditorPlace(Number(placeSelect.value)));
+document.getElementById('apply-place').addEventListener('click', () => {
+  const p=places[editorIndex]; p.name=placeName.value.trim()||'Bez názvu'; p.description=placeDescription.value.trim(); p.detailUrl=placeDetailUrl.value.trim(); p.category=placeCategory.value; p.x=Math.max(0,Math.min(100,Number(placeX.value))); p.y=Math.max(0,Math.min(100,Number(placeY.value)));
+  savePlaces(); rebuildMarkers(); refreshEditor(editorIndex);
+});
+document.getElementById('add-place').addEventListener('click', () => { places.push({name:'Nový bod',category:'misto',description:'Doplň popis místa.',detailUrl:'',x:50,y:50}); savePlaces(); rebuildMarkers(); refreshEditor(places.length-1); });
+document.getElementById('delete-place').addEventListener('click', () => { if(places.length<=1) return; places.splice(editorIndex,1); savePlaces(); rebuildMarkers(); refreshEditor(Math.max(0,editorIndex-1)); });
+document.getElementById('reset-places').addEventListener('click', () => { places=structuredClone(defaultPlaces); savePlaces(); rebuildMarkers(); refreshEditor(0); });
+placeOnMap.addEventListener('click', () => {
+  placementMode = !placementMode;
+  placementStatus.style.display = placementMode ? 'block' : 'none';
+  placeOnMap.classList.toggle('primary', placementMode);
+  placeOnMap.textContent = placementMode ? 'Zrušit umisťování' : 'Umístit kliknutím do mapy';
+  popup.style.display = 'none';
+});
+document.getElementById('export-final').addEventListener('click', () => {
+  // Vloží aktuální body přímo do HTML a zapne režim FINAL_MODE.
+  const clone = document.documentElement.cloneNode(true);
+  clone.querySelector('#app').innerHTML = '';
+  clone.querySelector('#popup').style.display = 'none';
+  clone.querySelector('#editor-toggle')?.remove();
+  clone.querySelector('#editor')?.remove();
+  // Finální soubor už editor nemá ani v HTML, takže na mobilu nemůže probliknout.
+  let html = '<!doctype html>\n' + clone.outerHTML;
+  const placesCode = 'const defaultPlaces = ' + JSON.stringify(places, null, 2) + ';';
+  html = html.replace(/const defaultPlaces = \[[\s\S]*?\n\];/, placesCode);
+  html = html.replace('const FINAL_MODE = true;', 'const FINAL_MODE = true;');
+  const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'index.html';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+});
+document.getElementById('export-places').addEventListener('click', () => {
+  const blob=new Blob([JSON.stringify(places,null,2)],{type:'application/json'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='body-kolejiste.json'; a.click(); URL.revokeObjectURL(a.href);
+});
+refreshEditor();
+
+}
+
+let selected = null;
+function setPointer(event) {
+  pointer.x = (event.clientX / innerWidth) * 2 - 1;
+  pointer.y = -(event.clientY / innerHeight) * 2 + 1;
+}
+
+renderer.domElement.addEventListener('pointermove', event => {
+  setPointer(event);
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(markers, false)[0];
+  renderer.domElement.style.cursor = placementMode ? 'crosshair' : (hit ? 'pointer' : 'grab');
+  for (const m of markers) m.scale.setScalar(hit && m === hit.object ? 1.35 : 1);
+});
+
+renderer.domElement.addEventListener('pointerdown', event => {
+  if (!(editMode && placementMode) || event.button !== 0) return;
+  event.preventDefault();
+  event.stopPropagation();
+  setPointer(event);
+  raycaster.setFromCamera(pointer, camera);
+  const worldPoint = new THREE.Vector3();
+  if (!raycaster.ray.intersectPlane(dragPlane, worldPoint)) return;
+
+  const x = Math.max(0, Math.min(100, (worldPoint.x / photoW + .5) * 100));
+  const y = Math.max(0, Math.min(100, (worldPoint.z / photoH + .5) * 100));
+  const p = places[editorIndex];
+  p.x = +x.toFixed(1);
+  p.y = +y.toFixed(1);
+  savePlaces();
+  rebuildMarkers();
+  refreshEditor(editorIndex);
+  placementMode = false;
+  placementStatus.style.display = 'none';
+  placeOnMap.classList.remove('primary');
+  placeOnMap.textContent = 'Umístit kliknutím do mapy';
+  renderer.domElement.style.cursor = 'grab';
+}, true);
+
+renderer.domElement.addEventListener('click', event => {
+  setPointer(event);
+  raycaster.setFromCamera(pointer, camera);
+  const hit = raycaster.intersectObjects(markers, false)[0];
+  if (editMode) {
+    if (hit) {
+      editorIndex = places.indexOf(hit.object.userData.markerRoot.userData.place);
+      refreshEditor(editorIndex);
+      popup.style.display = 'none';
+    }
+    return;
+  }
+
+  if (!hit) { selected = null; popup.style.display = 'none'; return; }
+  selected = hit.object.userData.markerRoot;
+  const place = selected.userData.place;
+  popupTitle.textContent = place.name;
+  popupText.textContent = place.description;
+  if (place.detailUrl) {
+    popupMore.href = place.detailUrl;
+    popupMore.style.display = 'inline-block';
+  } else {
+    popupMore.removeAttribute('href');
+    popupMore.style.display = 'none';
+  }
+  popup.style.display = 'block';
+});
+
+window.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && placementMode) {
+    placementMode = false;
+    placementStatus.style.display = 'none';
+    placeOnMap.classList.remove('primary');
+    placeOnMap.textContent = 'Umístit kliknutím do mapy';
+  }
+});
+
+function updatePopup() {
+  if (!selected || popup.style.display === 'none') return;
+  const popupHeight = selected.userData.popupHeight || 1.0;
+  const v = selected.localToWorld(new THREE.Vector3(0, popupHeight, 0)).project(camera);
+  const x = (v.x * .5 + .5) * innerWidth;
+  const y = (-v.y * .5 + .5) * innerHeight;
+  popup.style.left = `${x}px`;
+  popup.style.top = `${y}px`;
+}
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+
+const clock = new THREE.Clock();
+function animate() {
+  requestAnimationFrame(animate);
+  const t = clock.getElapsedTime();
+  markerGroup.children.forEach((g,i) => {
+    const ring = g.children.find(child => child.userData?.isPulseRing);
+    if (!ring) return;
+    const s = 1 + ((Math.sin(t*2.2+i)+1)/2)*.42;
+    ring.scale.setScalar(s);
+    ring.material.opacity = .55 - (s-1)*.7;
+  });
+  controls.update();
+  updatePopup();
+  renderer.render(scene, camera);
+}
+animate();
+</script>
+
+</body></html>
