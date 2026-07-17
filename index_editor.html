@@ -60,6 +60,24 @@
 <div class="legend"><div><span class="dot place"></span>Místa</div><div style="margin-top:6px;"><span class="dot infrastructure"></span>Infrastruktura</div></div>
 
 <button id="view-reset" class="view-reset">Výchozí pohled</button>
+<button id="editor-toggle" class="editor-toggle">Upravit body</button>
+<div id="editor" class="editor">
+  <h3>Editor interaktivních bodů</h3>
+  <p class="edit-note">Vyber bod v seznamu nebo klikni na bod v mapě. V režimu úprav klikni na bod, přesuň ho myší a druhým kliknutím ho polož. Změny se automaticky ukládají v prohlížeči. Po dokončení použij „Exportovat finální HTML“. Výsledný index.html už neobsahuje panel editoru, takže na mobilu neproblikne.</p>
+  <label for="place-select">Bod</label><select id="place-select"><option value="0">1. žst. Olomouc</option><option value="1">2. Areál pily</option><option value="2">3. Sklad PHM</option><option value="3">4. Depo</option><option value="4">5. Opravna nákladních vozů</option><option value="5">6. žst. Hranice</option><option value="6">7. Vojenská vlečka</option><option value="7">8. 1</option><option value="8">9. 3</option><option value="9">10. 5</option><option value="10">11. 7</option><option value="11">12. 9</option><option value="12">13. 11</option><option value="13">14. 13</option><option value="14">15. 1</option><option value="15">16. 3</option><option value="16">17. 5</option></select>
+  <label for="place-name">Název</label><input id="place-name" type="text">
+  <label for="place-description">Popis</label><textarea id="place-description"></textarea>
+  <label for="place-detail-url">Odkaz na detailní stránku</label><input id="place-detail-url" type="text" placeholder="./mista/olomouc.html">
+  <label for="place-category">Kategorie</label>
+  <select id="place-category"><option value="misto">Místa</option><option value="infrastruktura">Infrastruktura</option></select>
+  <div class="row"><div><label for="place-x">X (%)</label><input id="place-x" type="number" min="0" max="100" step="0.1"></div><div><label for="place-y">Y (%)</label><input id="place-y" type="number" min="0" max="100" step="0.1"></div></div>
+  <div class="actions"><button id="apply-place" class="primary">Použít změny</button><button id="place-on-map">Umístit kliknutím do mapy</button></div>
+  <p id="placement-status" class="edit-note" style="display:none;margin-top:10px;color:#74d7ff;">Klikni jednou na požadované místo v mapě. Bod se tam ihned přesune.</p>
+  <div class="actions"><button id="add-place">Přidat bod</button><button id="delete-place" class="danger">Smazat</button></div>
+  <div class="actions"><button id="export-final" class="primary">Exportovat finální HTML</button></div>
+  <div class="actions"><button id="export-places">Export JSON</button><button id="reset-places">Obnovit výchozí</button></div>
+</div>
+
 <script type="importmap">
 {"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.166.1/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.166.1/examples/jsm/"}}
 </script>
@@ -88,7 +106,7 @@ const placementStatus = document.getElementById('placement-status');
 let editMode = false;
 let editorIndex = 0;
 let placementMode = false;
-const FINAL_MODE = true;
+const FINAL_MODE = false;
 let activeFilter = 'misto';
 
 function getCategoryMeta(category) {
@@ -465,7 +483,7 @@ document.getElementById('export-final').addEventListener('click', () => {
   let html = '<!doctype html>\n' + clone.outerHTML;
   const placesCode = 'const defaultPlaces = ' + JSON.stringify(places, null, 2) + ';';
   html = html.replace(/const defaultPlaces = \[[\s\S]*?\n\];/, placesCode);
-  html = html.replace('const FINAL_MODE = true;', 'const FINAL_MODE = true;');
+  html = html.replace('const FINAL_MODE = false;', 'const FINAL_MODE = false;');
   const blob = new Blob([html], { type: 'text/html;charset=utf-8' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
